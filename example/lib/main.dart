@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:media_player/media_player.dart';
 
 Future<void> main() async {
-  ShapeeMediaPlayer.init(
+  WidgetsFlutterBinding.ensureInitialized();
+  await ShapeeMediaPlayer.init(
     audioServiceConfig: const AudioServiceConfig(
       androidNotificationChannelId: 'com.example.audio_player',
       androidNotificationChannelName: 'Music playback',
@@ -162,7 +163,7 @@ class _MyHomePageState extends State<MyHomePage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             LinearProgressIndicator(
-                              value: position.data == null
+                              value: position.data == null || position.data!.$2.inMilliseconds == 0
                                   ? 0.0
                                   : position.data!.$1.inMilliseconds /
                                         position.data!.$2.inMilliseconds,
@@ -202,14 +203,17 @@ class _MyHomePageState extends State<MyHomePage> {
                                     ),
                                   ),
                                   IconButton(
-                                    onPressed: (){
+                                    onPressed: () {
                                       if (playing) {
                                         _player.pause();
                                       } else {
                                         _player.play();
                                       }
                                     },
-                                    icon: Icon(playing? Icons.pause: Icons.play_arrow, color: Theme.of(context).colorScheme.onPrimary,),
+                                    icon: Icon(
+                                      playing ? Icons.pause : Icons.play_arrow,
+                                      color: Theme.of(context).colorScheme.onPrimary,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -229,7 +233,11 @@ class _MyHomePageState extends State<MyHomePage> {
     await _player.playQueue(
       rife.frequencies
           .map(
-            (e) => AudioPlayerItem.frequency(title: '${e.toInt()}Hz', frequency: e, albumTitle: rife.title),
+            (e) => AudioPlayerItem.frequency(
+              title: '${e.toInt()}Hz',
+              frequency: e,
+              albumTitle: rife.title,
+            ),
           )
           .toList(),
       playIndex: index,
