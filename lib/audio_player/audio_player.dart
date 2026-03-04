@@ -4,7 +4,6 @@ import 'dart:math';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:hive/hive.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:sound_generator/sound_generator.dart';
 
@@ -22,7 +21,6 @@ class ShapeeMediaPlayer {
 
   /// Call once at app startup (e.g. from main() or before first playback).
   static Future<void> init({required AudioServiceConfig audioServiceConfig}) async {
-    Hive.init('cacheAudioPlayerPlus');
     await ShapeeMediaPlayer.instance._audioPlayerHandler.init();
     await AudioService.init(
       builder: () => ShapeeMediaPlayer.instance._audioPlayerHandler,
