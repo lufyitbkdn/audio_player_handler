@@ -156,6 +156,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 24),
                               child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
                                   Expanded(
                                     child: Column(
@@ -167,37 +168,56 @@ class _MyHomePageState extends State<MyHomePage> {
                                       ],
                                     ),
                                   ),
-                                  IconButton(
-                                    onPressed: () {
-                                      final newShuffle = !_isShuffled;
-                                      _player.setShuffled(newShuffle);
-                                      setState(() => _isShuffled = newShuffle);
-                                    },
-                                    icon: Icon(Icons.shuffle, color: _isShuffled ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.5)),
-                                  ),
-                                  IconButton(
-                                    onPressed: () {
-                                      if (playing) {
-                                        _player.pause();
-                                      } else {
-                                        _player.play();
-                                      }
-                                    },
-                                    icon: Icon(playing ? Icons.pause : Icons.play_arrow, color: Theme.of(context).colorScheme.onPrimary),
-                                  ),
-                                  IconButton(
-                                    onPressed: () {
-                                      final newMode = _loopMode == LoopMode.none ? LoopMode.all : (_loopMode == LoopMode.all ? LoopMode.one : LoopMode.none);
-                                      _player.setLoopMode(newMode);
-                                      setState(() => _loopMode = newMode);
-                                    },
-                                    icon: Icon(
-                                      _loopMode == LoopMode.one
-                                          ? Icons
-                                                .repeat_one //
-                                          : Icons.repeat,
-                                      color: _loopMode != LoopMode.none ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.5),
-                                    ),
+                                  Column(
+                                    children: [
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            onPressed: () {
+                                              final newShuffle = !_isShuffled;
+                                              _player.setShuffled(newShuffle);
+                                              setState(() => _isShuffled = newShuffle);
+                                            },
+                                            icon: Icon(Icons.shuffle, color: _isShuffled ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.5)),
+                                          ),
+                                          IconButton(
+                                            onPressed: () {
+                                              final newMode = _loopMode == LoopMode.none ? LoopMode.all : (_loopMode == LoopMode.all ? LoopMode.one : LoopMode.none);
+                                              _player.setLoopMode(newMode);
+                                              setState(() => _loopMode = newMode);
+                                            },
+                                            icon: Icon(
+                                              _loopMode == LoopMode.one ? Icons.repeat_one : Icons.repeat,
+                                              color: _loopMode != LoopMode.none ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.5),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            onPressed: _player.hasPrevious ? () => _player.skipToPrevious() : null,
+                                            icon: Icon(Icons.skip_previous, color: _player.hasPrevious ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.5)),
+                                          ),
+                                          IconButton(
+                                            onPressed: () {
+                                              if (playing) {
+                                                _player.pause();
+                                              } else {
+                                                _player.play();
+                                              }
+                                            },
+                                            icon: Icon(playing ? Icons.pause : Icons.play_arrow, color: Theme.of(context).colorScheme.onPrimary),
+                                          ),
+                                          IconButton(
+                                            onPressed: _player.hasNext ? () => _player.skipToNext() : null,
+                                            icon: Icon(Icons.skip_next, color: _player.hasNext ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.5)),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),

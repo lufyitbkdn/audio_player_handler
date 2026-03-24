@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:sound_generator/sound_generator.dart';
 
@@ -65,9 +66,15 @@ class ShapeeMediaPlayer {
 
   double getVolume() => _audioPlayerHandler.getVolume();
 
+  bool get hasNext => _audioPlayerHandler.hasNext;
+
+  bool get hasPrevious => _audioPlayerHandler.hasPrevious;
+
   Future<void> playQueue(List<AudioPlayerItem> queue, {int playIndex = 0}) => _audioPlayerHandler.playQueue(queue, playIndex: playIndex);
 
   Future<void> addToQueue(AudioPlayerItem item) => _audioPlayerHandler.addToQueue(item);
+
+  List<AudioPlayerItem> getQueue() => _audioPlayerHandler._queue;
 
   Future<void> removeFromQueue(AudioPlayerItem item) => _audioPlayerHandler.removeFromQueue(item);
 
@@ -103,12 +110,25 @@ class _AudioPlayerHandler extends BaseAudioHandler {
 
   Future<void> init() async {
     await _audioCache.init();
-    _player.onDurationChanged.listen((duration) {
-      _positionSubject.add((_positionSubject.value.$1, duration));
+    _player.eventStream.listen((event) {
+      debugPrint('Audio Event: $event ');
+      final currentItem = _currentItemSubject.valueOrNull;
+      if (event.eventType == AudioEventType.prepared && currentItem is AudioPlayerItemMusic) {
+        _updateAudioServicePlaybackState(playing: true, duration: event.duration ?? Duration.zero, processingState: AudioProcessingState.ready);
+      }
+    }, onError: (Object e, StackTrace stackTrace) {
+      debugPrint('Audio Player Error: $e');
+      PlayerError error = PlayerError.unknown;
+      if (e.toString().contains('SocketException') || e.toString().contains('HttpException')) {
+        error = PlayerError.network;
+      } else if (e.toString().contains('FileNotFound') || e.toString().contains('PathNotFound')) {
+        error = PlayerError.fileNotFound;
+      }
       _updateAudioServicePlaybackState(
-        playing: _player.state == PlayerState.playing,
-        position: _positionSubject.value.$1,
-        duration: duration,
+        playing: false,
+        processingState: AudioProcessingState.error,
+        errorMessage: e.toString(),
+        playerError: error,
       );
     });
 
@@ -161,13 +181,15 @@ class _AudioPlayerHandler extends BaseAudioHandler {
     AudioProcessingState processingState = AudioProcessingState.ready,
     Duration position = Duration.zero,
     Duration duration = Duration.zero,
+    String? errorMessage,
+    PlayerError? playerError,
   }) {
     playbackState.add(PlaybackState(
       controls: [
         MediaControl.pause,
         MediaControl.stop,
-        MediaControl.skipToNext,
-        MediaControl.skipToPrevious,
+        if (hasNext) MediaControl.skipToNext,
+        if (hasPrevious) MediaControl.skipToPrevious,
       ],
       systemActions: {
         MediaAction.seek,
@@ -178,6 +200,8 @@ class _AudioPlayerHandler extends BaseAudioHandler {
       processingState: processingState,
       updatePosition: position,
       bufferedPosition: duration,
+      errorMessage: errorMessage,
+      errorCode: playerError?.index,
     ));
   }
 
@@ -252,64 +276,91 @@ class _AudioPlayerHandler extends BaseAudioHandler {
   }
 
   Future<void> _playMusic(AudioPlayerItemMusic item) async {
-    await _player.stop();
-    final cacheFile = _audioCache.getCacheFile(item.url);
-    if (cacheFile != null && cacheFile.existsSync()) {
-      await _player.play(DeviceFileSource(cacheFile.path));
-    } else {
-      _audioCache.download([item.url]);
-      await _player.play(UrlSource(item.url));
+    try {
+      await _player.stop();
+      _updateAudioServicePlaybackState(playing: false, processingState: AudioProcessingState.loading);
+      final cacheFile = _audioCache.getCacheFile(item.url);
+      if (cacheFile != null && cacheFile.existsSync()) {
+        await _player.play(DeviceFileSource(cacheFile.path));
+      } else {
+        _audioCache.download([item.url]);
+        await _player.play(UrlSource(item.url));
+      }
+    } catch (e) {
+      debugPrint('Error playing music: $e');
+      PlayerError error = PlayerError.unknown;
+      if (e.toString().contains('SocketException') || e.toString().contains('HttpException')) {
+        error = PlayerError.network;
+      } else if (e.toString().contains('FileNotFound') || e.toString().contains('PathNotFound')) {
+        error = PlayerError.fileNotFound;
+      }
+      _updateAudioServicePlaybackState(
+        playing: true,
+        processingState: AudioProcessingState.error,
+        errorMessage: e.toString(),
+        playerError: error,
+      );
     }
   }
 
   Future<void> _playFrequency(AudioPlayerItemFrequency item) async {
-    _timer?.cancel();
-    _timer = null;
-    final resumePosition = _frequencyResumePosition;
-    _frequencyResumePosition = null;
-    await SoundGenerator.init(96000);
-    SoundGenerator.setAutoUpdateOneCycleSample(true);
-    SoundGenerator.refreshOneCycleData();
-    SoundGenerator.setFrequency(item.frequency);
-    SoundGenerator.setVolume(_volume);
-    SoundGenerator.play();
+    try {
+      _timer?.cancel();
+      _timer = null;
+      final resumePosition = _frequencyResumePosition;
+      _frequencyResumePosition = null;
+      await SoundGenerator.init(96000);
+      SoundGenerator.setAutoUpdateOneCycleSample(true);
+      SoundGenerator.refreshOneCycleData();
+      SoundGenerator.setFrequency(item.frequency);
+      SoundGenerator.setVolume(_volume);
+      SoundGenerator.play();
 
-    final duration = Duration(seconds: item.durationInSeconds);
-    final startSeconds = resumePosition != null && resumePosition.inSeconds > 0 && resumePosition.inSeconds < item.durationInSeconds ? resumePosition.inSeconds : 0;
-    elapsedSeconds = startSeconds;
+      final duration = Duration(seconds: item.durationInSeconds);
+      final startSeconds = resumePosition != null && resumePosition.inSeconds > 0 && resumePosition.inSeconds < item.durationInSeconds ? resumePosition.inSeconds : 0;
+      elapsedSeconds = startSeconds;
 
-    void onTick(Timer t) {
-      elapsedSeconds++;
-      final position = Duration(seconds: elapsedSeconds);
-      _positionSubject.add((position, duration));
-      _updateAudioServicePlaybackState(
-        playing: true,
-        position: position,
-        duration: duration,
-      );
-      if (elapsedSeconds >= item.durationInSeconds) {
-        _timer?.cancel();
-        _timer = null;
-        SoundGenerator.stop();
+      void onTick(Timer t) {
+        elapsedSeconds++;
+        final position = Duration(seconds: elapsedSeconds);
+        _positionSubject.add((position, duration));
         _updateAudioServicePlaybackState(
-          playing: false,
-          processingState: AudioProcessingState.completed,
-          position: duration,
+          playing: true,
+          position: position,
           duration: duration,
         );
-        _onPlaybackCompleted();
+        if (elapsedSeconds >= item.durationInSeconds) {
+          _timer?.cancel();
+          _timer = null;
+          SoundGenerator.stop();
+          _updateAudioServicePlaybackState(
+            playing: false,
+            processingState: AudioProcessingState.completed,
+            position: duration,
+            duration: duration,
+          );
+          _onPlaybackCompleted();
+        }
       }
+
+      final initialPosition = Duration(seconds: startSeconds);
+      _positionSubject.add((initialPosition, duration));
+      _updateAudioServicePlaybackState(
+        playing: true,
+        position: initialPosition,
+        duration: duration,
+      );
+
+      _timer = Timer.periodic(const Duration(seconds: 1), onTick);
+    } catch (e) {
+      debugPrint('Error playing frequency: $e');
+      _updateAudioServicePlaybackState(
+        playing: false,
+        processingState: AudioProcessingState.error,
+        errorMessage: e.toString(),
+        playerError: PlayerError.unknown,
+      );
     }
-
-    final initialPosition = Duration(seconds: startSeconds);
-    _positionSubject.add((initialPosition, duration));
-    _updateAudioServicePlaybackState(
-      playing: true,
-      position: initialPosition,
-      duration: duration,
-    );
-
-    _timer = Timer.periodic(const Duration(seconds: 1), onTick);
   }
 
   /// Start playing [item], or resume if [item] is null and something is current.
@@ -481,10 +532,25 @@ class _AudioPlayerHandler extends BaseAudioHandler {
     _playOrder.clear();
     _playOrderIndex = 0;
   }
+
+  bool get hasNext => switch (loopMode) {
+        LoopMode.none || LoopMode.one => _playOrderIndex < _queue.length - 1,
+        LoopMode.all => true,
+      };
+  bool get hasPrevious => switch (loopMode) {
+        LoopMode.none || LoopMode.one => _playOrderIndex > 0,
+        LoopMode.all => true,
+      };
 }
 
 enum LoopMode {
   none,
   one,
   all,
+}
+
+enum PlayerError {
+  network,
+  fileNotFound,
+  unknown,
 }

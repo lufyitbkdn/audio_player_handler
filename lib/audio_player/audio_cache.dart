@@ -21,6 +21,7 @@ class ShappeAudioCache {
   final List<String> _queues = List.empty(growable: true);
   final List<String> _errorUrls = List.empty(growable: true);
   final Set<String> _downloadingUrls = {};
+  final Map<String, CancelToken> _cancelTokens = {};
 
   Future<void> init() async {
     _downloadCacheDir = await getApplicationCacheDirectory();
@@ -63,20 +64,29 @@ class ShappeAudioCache {
   }
 
   Future<void> _download(String url) async {
+    _downloadingUrls.add(url);
+    final cancelToken = CancelToken();
+    _cancelTokens[url] = cancelToken;
     try {
       _logger.info('AudioCache: Downloading $url');
       final downloadFile = File('${_downloadCacheDir.path}/${_encodeUrlToBase64(url)}.mp3');
-      await _dio.download(url, downloadFile.path);
+      await _dio.download(url, downloadFile.path, cancelToken: cancelToken);
       final cachePath = '${_cacheDir.path}/${_encodeUrlToBase64(url)}.mp3';
       await downloadFile.rename(cachePath);
       _logger.info('AudioCache: Downloaded $url and cache to $cachePath');
       _errorUrls.remove(url);
       _downloadingUrls.remove(url);
+      _cancelTokens.remove(url);
       _queues.remove(url);
       _downloadNext();
     } catch (e) {
-      _errorUrls.add(url);
+      if (e is DioException && CancelToken.isCancel(e)) {
+        _logger.info('AudioCache: Download cancelled for $url');
+      } else {
+        _errorUrls.add(url);
+      }
       _downloadingUrls.remove(url);
+      _cancelTokens.remove(url);
       _queues.remove(url);
       _downloadNext();
     }
@@ -87,5 +97,17 @@ class ShappeAudioCache {
     if (url != null) {
       _download(url);
     }
+  }
+
+  Future<void> clearCache() async {
+    for (final token in _cancelTokens.values) {
+      token.cancel();
+    }
+    _cancelTokens.clear();
+    await _cacheDir.delete(recursive: true);
+    await _cacheDir.create();
+    _queues.clear();
+    _downloadingUrls.clear();
+    _errorUrls.clear();
   }
 }
