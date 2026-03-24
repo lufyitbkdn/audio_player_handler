@@ -186,7 +186,7 @@ class _AudioPlayerHandler extends BaseAudioHandler {
   }) {
     playbackState.add(PlaybackState(
       controls: [
-        MediaControl.pause,
+        if (playing) MediaControl.pause else MediaControl.play,
         MediaControl.stop,
         if (hasNext) MediaControl.skipToNext,
         if (hasPrevious) MediaControl.skipToPrevious,
