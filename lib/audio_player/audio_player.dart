@@ -95,6 +95,7 @@ class _AudioPlayerHandler extends BaseAudioHandler {
   bool isShuffled = false;
   LoopMode loopMode = LoopMode.none;
   double _volume = 1.0;
+  bool _isPaused = false;
 
   final BehaviorSubject<AudioPlayerItem?> _currentItemSubject = BehaviorSubject.seeded(null);
 
@@ -313,6 +314,7 @@ class _AudioPlayerHandler extends BaseAudioHandler {
 
   /// Start playing [item], or resume if [item] is null and something is current.
   Future<void> playItem(AudioPlayerItem? item) async {
+    _isPaused = false;
     final toPlay = item ?? _currentItemSubject.value;
     if (toPlay == null) return;
 
@@ -344,7 +346,13 @@ class _AudioPlayerHandler extends BaseAudioHandler {
     final current = _currentItemSubject.value;
     if (current == null) return;
     await current.map(
-      music: (_) async => _player.resume(),
+      music: (_) async {
+        if (_isPaused) {
+          await _player.resume();
+        } else {
+          await _playItem(current);
+        }
+      },
       frequency: (f) => _playFrequency(f),
     );
     _updateAudioServicePlaybackState(playing: true);
@@ -352,6 +360,7 @@ class _AudioPlayerHandler extends BaseAudioHandler {
 
   @override
   Future<void> pause() async {
+    _isPaused = true;
     final current = _currentItemSubject.value;
     if (current != null) {
       current.map(
@@ -369,6 +378,7 @@ class _AudioPlayerHandler extends BaseAudioHandler {
 
   @override
   Future<void> stop() async {
+    _isPaused = false;
     _timer?.cancel();
     _timer = null;
     _frequencyResumePosition = null;
