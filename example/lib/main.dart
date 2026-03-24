@@ -7,10 +7,7 @@ import 'package:media_player/media_player.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ShapeeMediaPlayer.init(
-    audioServiceConfig: const AudioServiceConfig(
-      androidNotificationChannelId: 'com.example.audio_player',
-      androidNotificationChannelName: 'Music playback',
-    ),
+    audioServiceConfig: const AudioServiceConfig(androidNotificationChannelId: 'com.example.audio_player', androidNotificationChannelName: 'Music playback'),
   );
   runApp(const MyApp());
 }
@@ -67,6 +64,18 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   final ShapeeMediaPlayer _player = ShapeeMediaPlayer.instance;
 
+  bool _isShuffled = false;
+  LoopMode _loopMode = LoopMode.none;
+  double _volume = 1.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _isShuffled = _player.isShuffled;
+    _loopMode = _player.loopMode;
+    _volume = _player.getVolume();
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = TextTheme.of(context);
@@ -101,17 +110,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     itemBuilder: (context, index) {
                       final track = tracks[index];
                       return Card(
-                        child: ListTile(
-                          title: Text(track.title),
-                          subtitle: Text(track.albumName),
-                          trailing:
-                              playing &&
-                                  playingItem is AudioPlayerItemMusic &&
-                                  playingItem.id == '${track.id}'
-                              ? const Icon(Icons.play_arrow)
-                              : null,
-                          onTap: () => _playTracks(tracks, index),
-                        ),
+                        child: ListTile(title: Text(track.title), subtitle: Text(track.albumName), trailing: playing && playingItem is AudioPlayerItemMusic && playingItem.id == '${track.id}' ? const Icon(Icons.play_arrow) : null, onTap: () => _playTracks(tracks, index)),
                       );
                     },
                     separatorBuilder: (_, index) => const SizedBox(height: 16),
@@ -128,17 +127,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     itemBuilder: (context, index) {
                       final rife = rifes.frequencies[index];
                       return Card(
-                        child: ListTile(
-                          title: Text('${rife.toInt()}Hz'),
-                          subtitle: Text(rifes.title),
-                          trailing:
-                              playing &&
-                                  playingItem is AudioPlayerItemFrequency &&
-                                  playingItem.frequency == rife
-                              ? const Icon(Icons.play_arrow)
-                              : null,
-                          onTap: () => _playRifes(rifes, index),
-                        ),
+                        child: ListTile(title: Text('${rife.toInt()}Hz'), subtitle: Text(rifes.title), trailing: playing && playingItem is AudioPlayerItemFrequency && playingItem.frequency == rife ? const Icon(Icons.play_arrow) : null, onTap: () => _playRifes(rifes, index)),
                       );
                     },
                     separatorBuilder: (_, index) => const SizedBox(height: 16),
@@ -162,16 +151,7 @@ class _MyHomePageState extends State<MyHomePage> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            LinearProgressIndicator(
-                              value: position.data == null || position.data!.$2.inMilliseconds == 0
-                                  ? 0.0
-                                  : position.data!.$1.inMilliseconds /
-                                        position.data!.$2.inMilliseconds,
-                              backgroundColor: Colors.transparent,
-                              valueColor: AlwaysStoppedAnimation(
-                                Theme.of(context).colorScheme.onPrimary,
-                              ),
-                            ),
+                            LinearProgressIndicator(value: position.data == null || position.data!.$2.inMilliseconds == 0 ? 0.0 : position.data!.$1.inMilliseconds / position.data!.$2.inMilliseconds, backgroundColor: Colors.transparent, valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.onPrimary)),
                             const SizedBox(height: 16),
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -181,26 +161,19 @@ class _MyHomePageState extends State<MyHomePage> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(
-                                          'Now Playing',
-                                          style: textTheme.labelLarge?.copyWith(
-                                            color: Theme.of(context).colorScheme.onPrimary,
-                                          ),
-                                        ),
-                                        Text(
-                                          playingItem.title,
-                                          style: textTheme.titleMedium?.copyWith(
-                                            color: Theme.of(context).colorScheme.onPrimary,
-                                          ),
-                                        ),
-                                        Text(
-                                          playingItem.albumTitle ?? '',
-                                          style: textTheme.bodySmall?.copyWith(
-                                            color: Theme.of(context).colorScheme.onPrimary,
-                                          ),
-                                        ),
+                                        Text('Now Playing', style: textTheme.labelLarge?.copyWith(color: Theme.of(context).colorScheme.onPrimary)),
+                                        Text(playingItem.title, style: textTheme.titleMedium?.copyWith(color: Theme.of(context).colorScheme.onPrimary)),
+                                        Text(playingItem.albumTitle ?? '', style: textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onPrimary)),
                                       ],
                                     ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () {
+                                      final newShuffle = !_isShuffled;
+                                      _player.setShuffled(newShuffle);
+                                      setState(() => _isShuffled = newShuffle);
+                                    },
+                                    icon: Icon(Icons.shuffle, color: _isShuffled ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.5)),
                                   ),
                                   IconButton(
                                     onPressed: () {
@@ -210,11 +183,43 @@ class _MyHomePageState extends State<MyHomePage> {
                                         _player.play();
                                       }
                                     },
+                                    icon: Icon(playing ? Icons.pause : Icons.play_arrow, color: Theme.of(context).colorScheme.onPrimary),
+                                  ),
+                                  IconButton(
+                                    onPressed: () {
+                                      final newMode = _loopMode == LoopMode.none ? LoopMode.all : (_loopMode == LoopMode.all ? LoopMode.one : LoopMode.none);
+                                      _player.setLoopMode(newMode);
+                                      setState(() => _loopMode = newMode);
+                                    },
                                     icon: Icon(
-                                      playing ? Icons.pause : Icons.play_arrow,
-                                      color: Theme.of(context).colorScheme.onPrimary,
+                                      _loopMode == LoopMode.one
+                                          ? Icons
+                                                .repeat_one //
+                                          : Icons.repeat,
+                                      color: _loopMode != LoopMode.none ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.5),
                                     ),
                                   ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.volume_down, color: Theme.of(context).colorScheme.onPrimary),
+                                  Expanded(
+                                    child: Slider(
+                                      value: _volume,
+                                      activeColor: Theme.of(context).colorScheme.onPrimary,
+                                      inactiveColor: Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.3),
+                                      onChanged: (val) {
+                                        setState(() => _volume = val);
+                                        _player.setVolume(val);
+                                      },
+                                    ),
+                                  ),
+                                  Icon(Icons.volume_up, color: Theme.of(context).colorScheme.onPrimary),
                                 ],
                               ),
                             ),
@@ -231,32 +236,14 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> _playRifes(Rife rife, int index) async {
     await _player.playQueue(
-      rife.frequencies
-          .map(
-            (e) => AudioPlayerItem.frequency(
-              title: '${e.toInt()}Hz',
-              frequency: e,
-              albumTitle: rife.title,
-            ),
-          )
-          .toList(),
+      rife.frequencies.map((e) => AudioPlayerItem.frequency(title: '${e.toInt()}Hz', frequency: e, albumTitle: rife.title)).toList(),
       playIndex: index,
     );
   }
 
   Future<void> _playTracks(List<Track> tracks, int index) async {
     await _player.playQueue(
-      tracks
-          .map(
-            (e) => AudioPlayerItem.music(
-              id: '${e.id}',
-              title: e.title,
-              url: e.trackUrl,
-              albumTitle: e.albumName,
-              coverImage: e.albumArtUrl,
-            ),
-          )
-          .toList(),
+      tracks.map((e) => AudioPlayerItem.music(id: '${e.id}', title: e.title, url: e.trackUrl, albumTitle: e.albumName, coverImage: e.albumArtUrl)).toList(),
       playIndex: index,
     );
   }

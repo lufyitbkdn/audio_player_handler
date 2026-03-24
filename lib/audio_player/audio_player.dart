@@ -61,6 +61,10 @@ class ShapeeMediaPlayer {
 
   Future<void> setShuffled(bool shuffled) => _audioPlayerHandler.setShuffled(shuffled);
 
+  Future<void> setVolume(double volume) => _audioPlayerHandler.setVolume(volume);
+
+  double getVolume() => _audioPlayerHandler.getVolume();
+
   Future<void> playQueue(List<AudioPlayerItem> queue, {int playIndex = 0}) => _audioPlayerHandler.playQueue(queue, playIndex: playIndex);
 
   Future<void> addToQueue(AudioPlayerItem item) => _audioPlayerHandler.addToQueue(item);
@@ -90,6 +94,7 @@ class _AudioPlayerHandler extends BaseAudioHandler {
 
   bool isShuffled = false;
   LoopMode loopMode = LoopMode.none;
+  double _volume = 1.0;
 
   final BehaviorSubject<AudioPlayerItem?> _currentItemSubject = BehaviorSubject.seeded(null);
 
@@ -265,7 +270,7 @@ class _AudioPlayerHandler extends BaseAudioHandler {
     SoundGenerator.setAutoUpdateOneCycleSample(true);
     SoundGenerator.refreshOneCycleData();
     SoundGenerator.setFrequency(item.frequency);
-    SoundGenerator.setVolume(1);
+    SoundGenerator.setVolume(_volume);
     SoundGenerator.play();
 
     final duration = Duration(seconds: item.durationInSeconds);
@@ -430,6 +435,14 @@ class _AudioPlayerHandler extends BaseAudioHandler {
     isShuffled = shuffled;
     _rebuildPlayOrder();
   }
+
+  Future<void> setVolume(double volume) async {
+    _volume = volume;
+    await _player.setVolume(volume);
+    SoundGenerator.setVolume(volume);
+  }
+
+  double getVolume() => _volume;
 
   Future<void> playQueue(
     List<AudioPlayerItem> queue, {
