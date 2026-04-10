@@ -284,7 +284,7 @@ class _AudioPlayerHandler extends BaseAudioHandler {
         await _player.play(DeviceFileSource(cacheFile.path));
       } else {
         _audioCache.download([item.url]);
-        await _player.play(UrlSource(item.url));
+        Future.delayed(Duration(milliseconds: 100), () => _player.play(UrlSource(item.url)));
       }
     } catch (e) {
       debugPrint('Error playing music: $e');
